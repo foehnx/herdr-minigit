@@ -1,0 +1,6 @@
+{
+  "global": {
+    "ctrl-b g": "mod.open:minigit",
+    "ctrl-b shift-g": "layout.toggle:minigit-dock"
+  }
+}

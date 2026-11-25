@@ -1,0 +1,30 @@
+{
+  "place": "none",
+  "focusable": true,
+  "palette": [
+    {
+      "title": "minigit: open beside",
+      "command": "pane.split",
+      "args": {
+        "direction": "right",
+        "mod": "minigit"
+      },
+      "words": "git lazygit stage commit"
+    },
+    {
+      "title": "minigit: open in a tab",
+      "command": "tab.new",
+      "args": {
+        "mod": "minigit",
+        "name": "git"
+      },
+      "words": "git lazygit stage commit"
+    }
+  ],
+  "title": "minigit",
+  "overlay": {
+    "kind": "window",
+    "width": 0.92,
+    "height": 0.88
+  }
+}

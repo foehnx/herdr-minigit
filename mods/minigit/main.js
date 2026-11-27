@@ -206,7 +206,7 @@ export default class Minigit extends View {
       if (!repo) { if (!this.repo) { this.error = `Not a git repository: ${loc.cwd}`; cx.notify(); } return; }
       if (this.repo && this.repo.root === repo.root && this.repo.on === repo.on) return;
       this.repo = repo; this.error = null; this.errorFull = null;
-      this.status = null; this.tree = []; this.commits = []; this.stashes = []; this.branches = { local: [], remote: [] }; this.state = null; this.rebaseTodo = null;
+      this.status = null; this.tree = []; this.commits = []; this.unpushed = null; this.unmerged = null; this.base = null; this.stashes = []; this.branches = { local: [], remote: [] }; this.state = null; this.rebaseTodo = null;
       this.browse = null; this.cfiles = null; this.plan = null; this.patch = null; this.mode = null; this.main = { key: null, rows: [], title: "" };
       this.logLimit = 300; this.collapsed.clear(); this.mainToken++; this.cfilesToken++; this.modalToken++;
       this.startWatch(cx);
@@ -258,14 +258,18 @@ export default class Minigit extends View {
           G.loadState(repo),
         ]);
         const headBranch = branches.local.find((b) => b.head);
-        // A browsed local branch is compared with its own upstream; a remote one has none (all pushed).
-        const upstreamRef = browse
-          ? (branches.local.find((b) => b.ref === browse.ref)?.upstreamRef ?? null)
-          : (headBranch?.upstreamRef ?? null);
-        const base = await G.findBase(repo, headBranch?.upstreamRemote ?? null);
+        const activeBranch = browse ? branches.local.find((b) => b.ref === browse.ref) : headBranch;
+        const rebaseBranch = !browse && state?.kind === "rebase" ? branches.local.find((b) => b.name === state.branch) : null;
+        // A browsed local branch is compared with its own upstream (unless gone); a remote one has none (all pushed).
+        const upstreamRef = activeBranch && !activeBranch.gone && activeBranch.upstreamRemote ? activeBranch.upstreamRef : null;
+        const baseRemote = activeBranch?.upstreamRemote
+          ?? (browse?.ref?.startsWith("refs/remotes/") ? browse.remote : null)
+          ?? rebaseBranch?.upstreamRemote
+          ?? null;
+        const base = await G.findBase(repo, baseRemote);
         const [commits, unpushed, unmerged, rebaseTodo] = await Promise.all([
           G.loadLog(repo, browse?.ref ?? null, logLimit),
-          G.loadUnpushed(repo, upstreamRef, browse?.ref ?? null, logLimit),
+          G.loadUnpushed(repo, upstreamRef, browse?.ref ?? null, logLimit, base),
           G.loadUnmerged(repo, base, browse?.ref ?? null, logLimit),
           state?.kind === "rebase" && !browse ? G.loadRebaseTodo(repo) : null,
         ]);
@@ -1330,7 +1334,20 @@ export default class Minigit extends View {
         });
         return true;
       }
-      case "r":
+      case "r": {
+        if (!b) return true;
+        if (this.state) return this.say(`A ${this.state.kind} is in progress: m to continue or abort`, "warning"), true;
+        if (local && b.head) return this.say("Already on this branch", "warning"), true;
+        const cur = this.status?.head ?? "HEAD";
+        this.confirm(`Rebase ${cur} onto ${b.name}?`, `Replays ${cur} on top of ${b.name} (with --autostash).`, (cx) => this.act(cx, `Rebasing onto ${b.name}`, async (_cx, repo) => {
+          const r = await repo.run(["rebase", "--autostash", b.ref], { timeout: 300000 });
+          const paused = (await G.loadState(repo))?.kind === "rebase";
+          if (r.code === 0 && !paused) return { text: `Rebased ${cur} onto ${b.name}`, level: "success" };
+          return this.rebaseOutcome(r, paused);
+        }));
+        return true;
+      }
+      case "R":
         if (!b || !local) return this.say("Rename works on local branches", "warning"), true;
         this.prompt(`Rename ${b.name}`, b.name, (name, cx) => {
           const n = this.validBranchName(name);
@@ -2008,7 +2025,7 @@ export default class Minigit extends View {
         const label = x.sha ? (x.msg?.split("\n")[0] ?? x.subject) : x.kind === "break" ? "pause rebase here" : x.kind === "other" ? x.rest : x.cmd;
         return this.row(id, selected, active, t, onClick)
           .child(div().w(54).flex_none().font_family(this.mono()).text_size(11.5).text_color(this.actionColor(act, t)).child(actLabel))
-          .when(!!x.sha, (e) => e.child(div().flex_none().font_family(this.mono()).text_size(11.5).text_color(t.dim).child(x.short)))
+          .when(!!x.sha, (e) => e.child(div().flex_none().font_family(this.mono()).text_size(11.5).text_color(t.ansi4).child(x.short)))
           .child(div().flex_1().min_w(0).truncate()
             .text_color(act === "drop" || x.kind === "break" ? t.dim : t.foreground)
             .when(act === "drop", (e) => e.line_through())
@@ -2039,10 +2056,10 @@ export default class Minigit extends View {
       }
       this.commits.forEach((c, j) => {
         const i = todo.length + j;
-        // red: not pushed · green: pushed and in the base branch (merged) · yellow: pushed, not merged.
-        const pushed = this.unpushed ? !this.unpushed.has(c.sha) : null;
+        // green: in the base branch (merged) · yellow: pushed on branch, not merged · red: not pushed.
         const merged = this.unmerged ? !this.unmerged.has(c.sha) : null;
-        const shaColor = pushed === false ? t.ansi1 : pushed && merged ? t.ansi2 : pushed ? t.ansi3 : t.dim;
+        const pushed = this.unpushed ? !this.unpushed.has(c.sha) : null;
+        const shaColor = merged ? t.ansi2 : pushed === false ? t.ansi1 : pushed ? t.ansi3 : t.dim;
         out.push(this.row(`c-${c.sha}`, this.cursor.commits === i, active, t, (e, cx) => pick("commits", i, e, cx, (cx) => this.commitsKey("enter", cx)))
           .child(div().flex_none().font_family(this.mono()).text_size(11.5).text_color(shaColor).child(c.short))
           .when(this.patch?.sha === c.sha, (e) => e.child(div().text_color(t.ansi5).child("●")))

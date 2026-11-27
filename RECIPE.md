@@ -49,7 +49,7 @@ diff text size is the terminal font size minus 1, clamped to 10–16px.
     - Branches: `*` on HEAD. Local branches show their tracking state on the
       right (`✓` ansi2, `↑n↓n` blocked, `gone` ansi1) and a relative date.
       `[`/`]` switches to remotes (newest 500).
-    - Commits: short sha (ansi1 not pushed; ansi2 pushed and in the base branch, i.e. merged; ansi3 pushed but not merged. Base: `<remote>/HEAD`, else `<remote>/main|master`, else local `main|master`; "pushed" = on the upstream, or on any remote branch when there is none), refs in `accent`
+    - Commits: short sha (ansi2 in the base branch, i.e. merged; ansi3 pushed on branch, not merged; ansi1 not pushed; ansi4 for planned commits in a rebase. Base: `<remote>/HEAD`, else `<remote>/main|master`, else local `main|master`; "pushed" = on the upstream or remote base, or on any remote branch when there is no upstream), refs in `accent`
       (at most 160px), subject, and author initials. 300 commits load first.
       `enter` replaces the list with a collapsible folder tree of that commit's
       files (`‹ sha subject` back row, indented 12px per level with `▸`/`▾`,
@@ -102,7 +102,7 @@ diff text size is the terminal font size minus 1, clamped to 10–16px.
     discards lines.
   - Conflicts: `o`/`t`/`b`/`B` keep ours, theirs or both, `space` + `enter`
     keep picked lines, `O`/`T` resolve the whole file, `z` undo.
-  - Branches: check out, new, rename, delete local or remote, set upstream,
+  - Branches: check out, rebase onto, new, rename, delete local or remote, set upstream,
     `enter` browses a branch's commits.
   - Commits: reword, drop, edit, squash/fixup into below, amend staged into
     the commit, change author, `ctrl-j/k` move, `i` interactive rebase plan,

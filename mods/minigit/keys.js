@@ -18,8 +18,8 @@ export const KEYS = {
     ["e", "edit file"], ["esc", "back", true],
   ],
   branches: [
-    ["space", "check out", true], ["enter", "browse commits", true], ["n", "new branch", true], ["r", "rename", true],
-    ["d", "delete local", true], ["D", "delete remote", true], ["u", "set upstream"], ["[ ]", "local / remotes", true],
+    ["space", "check out", true], ["enter", "browse commits", true], ["r", "rebase onto", true], ["n", "new branch", true],
+    ["R", "rename", true], ["d", "delete local", true], ["D", "delete remote", true], ["u", "set upstream"], ["[ ]", "local / remotes", true],
   ],
   commits: [
     ["enter", "files / build patch", true], ["r", "reword", true], ["R", "reword in editor"], ["d", "drop", true],

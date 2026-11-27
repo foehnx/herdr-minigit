@@ -275,11 +275,13 @@ export async function loadLog(repo, ref, limit) {
   });
 }
 
-// Commits of `ref` not on its upstream; without one, not on any remote branch.
+// Commits of `ref` not on its upstream (nor on a remote `baseRef`); without an upstream, not on any remote branch.
 // `limit` matches the log's: rev-list keeps log's order, so every shown commit is covered.
-export async function loadUnpushed(repo, upstreamRef, ref, limit) {
+export async function loadUnpushed(repo, upstreamRef, ref, limit, baseRef = null) {
   const target = ref && !ref.startsWith("-") ? ref : "HEAD";
-  const args = upstreamRef && !upstreamRef.startsWith("-") ? [`${upstreamRef}..${target}`] : [target, "--not", "--remotes"];
+  const args = upstreamRef && !upstreamRef.startsWith("-")
+    ? [target, "--not", upstreamRef, ...(baseRef && baseRef.startsWith("refs/remotes/") && baseRef !== upstreamRef ? [baseRef] : [])]
+    : [target, "--not", "--remotes"];
   const r = await repo.run(["rev-list", `--max-count=${limit}`, ...args], { read: true });
   return r.code === 0 ? new Set(r.stdout.split("\n").filter(Boolean)) : null;
 }
@@ -289,9 +291,15 @@ export async function loadUnpushed(repo, upstreamRef, ref, limit) {
 export async function findBase(repo, upstreamRemote) {
   const remote = upstreamRemote || "origin";
   const head = await repo.run(["symbolic-ref", "-q", `refs/remotes/${remote}/HEAD`], { read: true });
-  if (head.code === 0 && head.stdout.trim()) return head.stdout.trim();
-  for (const ref of [`refs/remotes/${remote}/main`, `refs/remotes/${remote}/master`, "refs/heads/main", "refs/heads/master"]) {
-    const r = await repo.run(["rev-parse", "-q", "--verify", ref], { read: true });
+  const candidates = [
+    ...(head.code === 0 && head.stdout.trim() ? [head.stdout.trim()] : []),
+    `refs/remotes/${remote}/main`,
+    `refs/remotes/${remote}/master`,
+    "refs/heads/main",
+    "refs/heads/master",
+  ];
+  for (const ref of candidates) {
+    const r = await repo.run(["rev-parse", "-q", "--verify", `${ref}^{commit}`], { read: true });
     if (r.code === 0) return ref;
   }
   return null;
